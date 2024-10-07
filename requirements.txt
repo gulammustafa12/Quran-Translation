@@ -1,0 +1,5 @@
+streamlit
+SpeechRecognition
+pydub
+arabic_reshaper
+python-bidi
