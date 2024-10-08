@@ -1,16 +1,11 @@
 import streamlit as st
 import speech_recognition as sr
 import arabic_reshaper
-from bidi.algorithm import get_display
 from pydub import AudioSegment
 import os
 
-# Initialize session state for the uploaded file and user choice
-if 'uploaded_file' not in st.session_state:
-    st.session_state.uploaded_file = None
-
-if 'recite_option' not in st.session_state:
-    st.session_state.recite_option = "No"
+# Surah Al-Kausar text for comparison
+SURAH_AL_KAUSAR = "ﺍﻧﺎ ﺍﻋﻄﻴﻨﺎﻙ ﺍﻟﻜﻮﺛﺮ ﻓﺼﻞ ﻟﺮﺑﻚ ﻭﺍﻧﺤﺮ ﺍﻥ ﺷﺎﻧﺌﻚ ﻫﻮ ﺍﻻﺑﺘﺮ"
 
 # Function to transcribe audio from a file
 def transcribe_audio(file_path):
@@ -33,44 +28,28 @@ def transcribe_audio(file_path):
     except Exception as e:
         return f"حدث خطأ: {str(e)}"
 
-# Function to transcribe live audio from the microphone
-def transcribe_live_audio():
-    recognizer = sr.Recognizer()
-    mic = sr.Microphone()
+# Function to color the transcribed text
+def color_transcribed_text(transcribed_text):
+    reshaped_transcribed_text = arabic_reshaper.reshape(transcribed_text.strip())
+    reshaped_surah_kasar = arabic_reshaper.reshape(SURAH_AL_KAUSAR.strip())
     
-    with mic as source:
-        st.write("Start reciting...")
-        recognizer.adjust_for_ambient_noise(source)
-        audio_data = recognizer.listen(source)
-        st.write("Transcribing...")
-        
-        try:
-            transcribed_text = recognizer.recognize_google(audio_data, language='ar-SA')
-            return transcribed_text
-        except sr.UnknownValueError:
-            return "خطأ: لم يتمكن النظام من التعرف على الكلام."
-        except sr.RequestError as e:
-            return f"خطأ في الاتصال بالخدمة: {e}"
-        except Exception as e:
-            return f"حدث خطأ: {str(e)}"
+    # Splitting the transcribed text into words for comparison
+    transcribed_words = reshaped_transcribed_text.split()
+    surah_words = reshaped_surah_kasar.split()
 
-# Compare transcriptions word by word
-def compare_transcriptions(recited_text, correct_text):
-    recited_words = recited_text.split()
-    correct_words = correct_text.split()
-    
-    comparison_result = ""
-    for recited_word, correct_word in zip(recited_words, correct_words):
-        if recited_word == correct_word:
-            comparison_result += f"<span style='color:green;'>{recited_word}</span> "
+    colored_text = ""
+    for word in transcribed_words:
+        if word in surah_words:
+            colored_text += f"<span style='color:green;'>{word}</span> "
+            surah_words.remove(word)  # Remove matched word to avoid duplication
         else:
-            comparison_result += f"<span style='color:red;'>{recited_word}</span> "
-    
-    return comparison_result.strip()
+            colored_text += f"<span style='color:red;'>{word}</span> "
+
+    return colored_text.strip()
 
 # Main application
 def main():
-    st.title("Quran Speech to Text")
+    st.title("Quran Speech to Text Transcriber")
 
     # Add custom CSS for Arabic text styling
     st.markdown(
@@ -88,7 +67,7 @@ def main():
         </style>
         """, unsafe_allow_html=True)
 
-    # File upload for initial recitation
+    # File upload for recitation
     uploaded_file = st.file_uploader("Upload your recitation file", type=["mp3", "wav", "flac", "ogg", "aac", "wma"])
     
     if uploaded_file is not None:
@@ -103,29 +82,9 @@ def main():
             if transcribed_text.startswith("خطأ"):
                 st.markdown(f"<p class='arabic-text' style='color:red;'>{transcribed_text}</p>", unsafe_allow_html=True)
             else:
-                reshaped_transcribed_text = arabic_reshaper.reshape(transcribed_text)
-                st.markdown(f"<p class='arabic-text' style='color:green;'>{reshaped_transcribed_text}</p>", unsafe_allow_html=True)
-
-                # Option for live recitation
-                st.write("Do you want to recite live?")
-                recite_option = st.radio("", ("Yes", "No"))
-
-                if recite_option == "Yes":
-                    # Record and transcribe live audio
-                    st.write("Please recite now...")
-                    live_recited_text = transcribe_live_audio()
-
-                    if live_recited_text.startswith("خطأ"):
-                        st.markdown(f"<p class='arabic-text' style='color:red;'>{live_recited_text}</p>", unsafe_allow_html=True)
-                    else:
-                        # Compare live recitation with the transcribed text
-                        comparison_result = compare_transcriptions(live_recited_text, transcribed_text)
-
-                        reshaped_comparison_text = arabic_reshaper.reshape(comparison_result)
-                        st.markdown(f"<p class='arabic-text'>{reshaped_comparison_text}</p>", unsafe_allow_html=True)
-                
-                else:  # If the user selects "No"
-                    st.write("Thanks for using the Quran Speech to Text Transcriber!")
+                # Color the transcribed text based on the match with Surah Al-Kausar
+                colored_result = color_transcribed_text(transcribed_text)
+                st.markdown(f"<p class='arabic-text'>{colored_result}</p>", unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
